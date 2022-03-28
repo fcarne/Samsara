@@ -1,5 +1,5 @@
 name:                Samsara
-version:             0.1.0.0
+version:             1.0.0
 github:              "fcarne/Samsara"
 license:             BSD3
 author:              "Federico Carne"
@@ -22,11 +22,11 @@ description:         Please see the README on GitHub at <https://github.com/fcar
 dependencies:
 - base >= 4.7 && < 5
 
-library:
-  source-dirs: src
+#library:
+#  source-dirs: src
 
 executables:
-  Samsara-exe:
+  Samsara:
     main:                Main.hs
     source-dirs:         app
     ghc-options:
@@ -34,15 +34,16 @@ executables:
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
-    - Samsara
+    # - Samsara
+    - filepath
 
-tests:
-  Samsara-test:
-    main:                Spec.hs
-    source-dirs:         test
-    ghc-options:
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
-    dependencies:
-    - Samsara
+#tests:
+#  Samsara-test:
+#    main:                Spec.hs
+#    source-dirs:         test
+#    ghc-options:
+#    - -threaded
+#    - -rtsopts
+#    - -with-rtsopts=-N
+#    dependencies:
+#    - Samsara
