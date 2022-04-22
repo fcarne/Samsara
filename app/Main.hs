@@ -1,14 +1,15 @@
 module Main where
 
-import Data.List (delete)
+import Data.List (delete, findIndex)
+import Data.Maybe (fromMaybe)
 import System.Environment (getArgs)
 import System.FilePath (splitExtension)
 
 -- List utilities
 segment :: [a] -> [[a]]
 segment [] = []
-segment [x, y] = [[x, y]]
-segment (x : y : rest) = [x, y] : segment rest
+segment [w] = [[w]]
+segment (w : x : y : z : rest) = [w] : [x, y, z] : segment rest
 
 inAny :: (Eq a) => [[a]] -> a -> Bool
 inAny lists e = any (e `elem`) lists
@@ -18,27 +19,41 @@ replace list index e = let (x, _ : ys) = splitAt index list in x ++ e : ys
 
 -- Data & types and related functions
 data Tile
-  = Wall
-  | Passage
-  | Path
-  | Start
-  | Goal
-  deriving (Eq)
+  = Wall String
+  | Passage String
+  | Path String
+  | Start String
+  | Goal String
+
+isWall :: Tile -> Bool
+isWall (Wall _) = True
+isWall _ = False
+
+isGoal :: Tile -> Bool
+isGoal (Goal _) = True
+isGoal _ = False
+
+isStart :: Tile -> Bool
+isStart (Start _) = True
+isStart _ = False
+
+isPassage :: Tile -> Bool
+isPassage (Passage _) = True
+isPassage _ = False
 
 instance Show Tile where
-  show Wall = "##"
-  show Passage = "  "
-  show Path = "::"
-  show Start = "[]"
-  show Goal = "><"
+  show (Path s) = replace s (length s `div` 2) '*'
+  show (Wall s) = s
+  show (Passage s) = s
+  show (Start s) = s
+  show (Goal s) = s
 
 parseTile :: String -> Tile
 parseTile s
-  | s == show Wall = Wall
-  | s == show Passage = Passage
-  | s == show Path = Path
-  | s == show Start = Start
-  | s == show Goal = Goal
+  | s == "   " || s == " " = Passage s
+  | 'G' `elem` s = Goal s
+  | 'S' `elem` s = Start s
+  | otherwise = Wall s
 
 newtype Maze
   = Maze [[Tile]]
@@ -99,6 +114,7 @@ createNode coords from heuristic =
 
 -- A* algorithm 
 
+
 getRequiredDirection :: Coords -> Coords -> Direction
 getRequiredDirection (r1, c1) (r2, c2)
   | c1 == c2 && r1 - 1 == r2 = North
@@ -122,7 +138,7 @@ getNeighbors maze n heuristic =
                                       c1 >= 0,
                                       c1 < getWidth maze, 
                                       row - r1 == 0 || col - c1 == 0, 
-                                      at maze (r1, c1) /= Wall
+                                      not . isWall $ at maze (r1, c1) 
   ]
   where
     (row, col) = getCoords n
@@ -135,7 +151,7 @@ replaceTile (Maze tiles) (row, col) t = Maze (replace tiles row $ replace (tiles
 
 backtrace :: Maze -> Node -> [Direction]
 backtrace maze node@(Node coords _ _ from direction) =
-  if at maze coords == Start
+  if isStart $ at maze coords
     then []
     else backtrace maze from ++ [direction]
 
@@ -156,8 +172,8 @@ carvePath maze coords (d : path) = carvePath maze' coords' path
   where
     coords' = getInDirection coords d
     maze' =
-      if at maze coords == Passage
-        then replaceTile maze coords Path
+      if isPassage $ at maze coords
+        then replaceTile maze coords $ Path (show $ at maze coords)
         else maze
 
 solve :: Maze -> Coords -> Coords -> Maybe Maze
@@ -175,29 +191,39 @@ solve maze start goal = case path of
           getDir = North
         }
 
-parseArgs :: [String] -> IO (String, Coords, Coords)
+parseArgs :: [String] -> String
 parseArgs args =
-  if length args < 3
-    then error $ "Arguments must be 3, provided " ++ show (length args) ++ "!"
-    else do
-      let start = read $ args !! 1 :: Coords
-          goal = read $ args !! 2 :: Coords
+  if length args /= 1
+    then error $ "Arguments must be 1, provided " ++ show (length args) ++ "!"
+    else head args
 
-      return (head args, start, goal)
+
+findTile:: Maze -> (Tile -> Bool) -> Coords
+findTile maze@(Maze tiles) pred = (i `div` w, i `mod` w) 
+  where 
+    w = getWidth maze
+    i = fromMaybe 0 (findIndex pred $ concat tiles)
+
+getStartAndGoal :: Maze -> (Coords, Coords)
+getStartAndGoal maze@(Maze tiles) = if length (filter isStart t') == 1 && length (filter isGoal t') == 1
+  then (findTile maze isStart, findTile maze isGoal)
+  else error "Maze must have a starting tile and a goal tile!"
+  where t' = concat tiles
 
 main :: IO ()
 main = do
   args <- getArgs
-  (filename, start, goal) <- parseArgs args
+  let filename = parseArgs args
 
   mazeStr <- readFile filename
-  let m' = replaceTile (parseMaze mazeStr) start Start
-      maze = replaceTile m' goal Goal
+
+  let maze = parseMaze mazeStr
+      (start, goal) = getStartAndGoal maze
       solved = solve maze start goal
 
   putStrLn "Maze to solve:"
   print maze
-
+   
   case solved of 
     Nothing -> putStrLn "Solution not found!"
     Just m -> do
